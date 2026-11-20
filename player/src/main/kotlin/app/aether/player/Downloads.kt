@@ -184,7 +184,7 @@ class Downloads(
     }
 
     fun forget(id: MediaId) {
-        DownloadService.sendRemoveDownload(context, KeepService::class.java, id.value, false)
+        manager.removeDownload(id.value)
         scope.launch { files.forget(id) }
     }
 
@@ -253,7 +253,7 @@ class Downloads(
                 writing -= id
                 if (written != null) {
                     // In the Music folder now: the store's copy goes, and the manager forgets it.
-                    DownloadService.sendRemoveDownload(context, KeepService::class.java, id.value, false)
+                    manager.removeDownload(id.value)
                 } else {
                     couldNot += id
                 }
@@ -273,6 +273,14 @@ class KeepService : DownloadService(
     R.string.keep_channel_about,
 ) {
     override fun getDownloadManager(): DownloadManager = AudioStore.manager(this)
+    override fun onCreate() {
+        super.onCreate()
+        getDownloadManager().resumeDownloads()
+    }
+    override fun onDestroy() {
+        getDownloadManager().pauseDownloads()
+        super.onDestroy()
+    }
 
     override fun getScheduler(): Scheduler? = null
 

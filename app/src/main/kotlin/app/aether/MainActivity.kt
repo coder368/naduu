@@ -26,7 +26,6 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         val container = (application as AetherApp).container
-        container.playback.connect()
         // The boot film plays on a cold start only: not when the activity is recreated.
         val coldStart = savedInstanceState == null && !booted
         booted = true
@@ -118,6 +117,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        (application as AetherApp).container.playback.connect()
         // A quiet look for a newer AETHER, once the opening has played and the room has settled.
         val updates = (application as AetherApp).container.updates
         updateCheck?.cancel()
@@ -135,6 +135,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         updateCheck?.cancel()
+        (application as AetherApp).container.playback.release()
         super.onStop()
     }
 

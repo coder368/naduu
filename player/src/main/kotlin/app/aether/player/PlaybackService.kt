@@ -338,11 +338,15 @@ class PlaybackService : MediaLibraryService() {
         if (player.playbackState == Player.STATE_IDLE) player.prepare()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
+        if (!shutdownRequested && (controllerInfo.packageName == packageName || player.playWhenReady)) session else null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Media3's default returns START_STICKY for a null restart intent. That can recreate this
-        // service after a Recents swipe, making NADUU reappear as an active background app.
+        // Do not allow a null restart intent to recreate the service after a Recents swipe.
+        if (intent == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         super.onStartCommand(intent, flags, startId)
         return START_NOT_STICKY
     }
@@ -353,11 +357,17 @@ class PlaybackService : MediaLibraryService() {
         if (shutdownRequested) return
         shutdownRequested = true
         saveNow()
+        // Stop idle notifications before stopping players; otherwise Media3 may post a fresh
+        // notification while stopForeground is racing with player.stop().
+        player.setShowNotificationForIdlePlayer(Player.SHOW_NOTIFICATION_FOR_IDLE_PLAYER_NEVER)
         speaker.pause()
         speaker.stop()
         player.stop()
         spare?.player?.stop()
-        stopForeground(true)
+        // Releasing the session disconnects every bound controller, allowing stopSelf() to finish.
+        session?.release()
+        session = null
+        stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 

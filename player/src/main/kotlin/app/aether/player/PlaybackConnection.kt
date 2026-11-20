@@ -17,6 +17,7 @@ import app.aether.core.model.RepeatMode
 import app.aether.core.model.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +63,7 @@ class PlaybackConnection(private val context: Context, private val scope: Corout
     fun positionNow(): Long = controller?.currentPosition?.coerceAtLeast(0) ?: _position.value
 
     private var controller: MediaController? = null
+    private var connecting: Job? = null
     private val pending = ArrayList<(MediaController) -> Unit>()
     private var queue: List<Track> = emptyList()
     private var seeking = false
@@ -70,19 +72,29 @@ class PlaybackConnection(private val context: Context, private val scope: Corout
     private var route: Bundle = Bundle.EMPTY
 
     fun connect() {
-        if (controller != null) return
-        scope.launch {
+        if (controller != null || connecting?.isActive == true) return
+        connecting = scope.launch {
             val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-            val c = runCatching {
-                MediaController.Builder(context, token)
-                    .setListener(object : MediaController.Listener {
-                        override fun onExtrasChanged(controller: MediaController, extras: Bundle) {
-                            route = extras
-                            publish()
-                        }
-                    })
-                    .buildAsync().await()
-            }.getOrNull() ?: return@launch
+            val future = MediaController.Builder(context, token)
+                .setListener(object : MediaController.Listener {
+                    override fun onExtrasChanged(controller: MediaController, extras: Bundle) {
+                        route = extras
+                        publish()
+                    }
+                })
+                .buildAsync()
+            val c = try {
+                future.await()
+            } catch (e: CancellationException) {
+                MediaController.releaseFuture(future)
+                throw e
+            } catch (_: Exception) {
+                return@launch
+            }
+            if (!isActive) {
+                c.release()
+                return@launch
+            }
             route = c.sessionExtras
             controller = c
             c.addListener(Listener())
@@ -90,10 +102,13 @@ class PlaybackConnection(private val context: Context, private val scope: Corout
             publish()
             pending.toList().forEach { it(c) }
             pending.clear()
-        }
+        }.also { job -> job.invokeOnCompletion { if (connecting === job) connecting = null } }
     }
 
     fun release() {
+        connecting?.cancel()
+        connecting = null
+        pending.clear()
         ticker?.cancel()
         controller?.release()
         controller = null
