@@ -29,8 +29,10 @@ jobs:
 
       - name: Install Android build packages
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager" --install \
+          SDKMANAGER="$(find "$ANDROID_HOME" -type f -name sdkmanager -path '*/bin/sdkmanager' | head -1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install \
             "platform-tools" \
             "platforms;android-37" \
             "build-tools;35.0.0" \
