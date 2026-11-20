@@ -357,12 +357,11 @@ class PlaybackService : MediaLibraryService() {
         if (shutdownRequested) return
         shutdownRequested = true
         saveNow()
-        // Stop idle notifications before stopping players; otherwise Media3 may post a fresh
-        // notification while stopForeground is racing with player.stop().
-        player.setShowNotificationForIdlePlayer(Player.SHOW_NOTIFICATION_FOR_IDLE_PLAYER_NEVER)
+        // This project’s Media3 version does not expose idle-notification suppression; pause the
+        // main player rather than stopping it to avoid creating a fresh idle notification.
         speaker.pause()
         speaker.stop()
-        player.stop()
+        player.pause()
         spare?.player?.stop()
         // Releasing the session disconnects every bound controller, allowing stopSelf() to finish.
         session?.release()
