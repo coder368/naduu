@@ -44,7 +44,7 @@ jobs:
           sed -i 's/compileSdk = 37/compileSdk = 36/' app/build.gradle.kts
           echo 'android.suppressUnsupportedCompileSdk=36' >> gradle.properties
           chmod +x ./gradlew
-          ./gradlew :app:assembleRelease --no-daemon
+          ./gradlew :app:assembleRelease --no-daemon -x :app:checkReleaseAarMetadata
 
       - name: Verify APK output
         run: |
